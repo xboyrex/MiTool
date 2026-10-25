@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 420" width="1280" height="420">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#050608"/>
+      <stop offset="50%" stop-color="#0D1017"/>
+      <stop offset="100%" stop-color="#060709"/>
+    </linearGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#E50914"/>
+      <stop offset="100%" stop-color="#FF2E38"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="420" rx="18" fill="url(#bg)" stroke="#E50914" stroke-width="3.5"/>
+  <rect x="14" y="14" width="1252" height="392" rx="12" fill="none" stroke="#262C3A" stroke-width="1.5"/>
+
+  <rect x="440" y="2" width="400" height="28" rx="6" fill="#050608"/>
+  <text x="640" y="21" font-family="monospace" font-size="16" font-weight="800" fill="#F8FAFC" text-anchor="middle" letter-spacing="3">[ XBOYREX UNIFIED EDITION • v3.0 ]</text>
+
+  <text x="640" y="142" font-family="'Arial Black', 'Impact', sans-serif" font-size="110" font-weight="900" fill="url(#redGrad)" text-anchor="middle" letter-spacing="10">XBOYREX</text>
+
+  <text x="640" y="192" font-family="monospace" font-size="25" font-weight="800" fill="#F8FAFC" text-anchor="middle" letter-spacing="2">MITOOL + MIUNLOCKTOOL UNIFIED SUITE <tspan fill="#E50914">v3.0</tspan></text>
+  <text x="640" y="224" font-family="monospace" font-size="16" fill="#94A3B8" text-anchor="middle" letter-spacing="1.5">PC DESKTOP GUI (WINDOWS / LINUX / MACOS)  •  TERMUX &amp; DESKTOP CLI  •  FASTBOOT &amp; ADB</text>
+  <text x="640" y="250" font-family="monospace" font-size="14" fill="#64748B" text-anchor="middle">Developed by xboyrex (Mayank Droid)  ·  Smart DoH DNS (1.1.1.1 / 8.8.8.8)  ·  Zero PC Needed on Termux</text>
+
+  <g transform="translate(80, 278)">
+    <rect x="0" y="0" width="1120" height="94" rx="10" fill="#0A0D13" stroke="#2D3548" stroke-width="1.5"/>
+    <text x="35" y="34" font-family="monospace" font-size="15" font-weight="700" fill="#E50914">[01] <tspan fill="#F8FAFC">Unlock Bootloader</tspan></text>
+    <text x="275" y="34" font-family="monospace" font-size="15" font-weight="700" fill="#E50914">[02] <tspan fill="#F8FAFC">Flash Fastboot ROM</tspan></text>
+    <text x="520" y="34" font-family="monospace" font-size="15" font-weight="700" fill="#E50914">[03] <tspan fill="#F8FAFC">Mi Assistant</tspan></text>
+    <text x="710" y="34" font-family="monospace" font-size="15" font-weight="700" fill="#E50914">[04] <tspan fill="#F8FAFC">Firmware Extractor</tspan></text>
+    <text x="955" y="34" font-family="monospace" font-size="15" font-weight="700" fill="#E50914">[05] <tspan fill="#F8FAFC">Mi Apply</tspan></text>
+
+    <text x="35" y="68" font-family="monospace" font-size="14" fill="#10B981">✔ Desktop GUI: mitool-gui / mitool --gui</text>
+    <text x="395" y="68" font-family="monospace" font-size="14" fill="#10B981">✔ Termux &amp; PC CLI: mitool / miunlock</text>
+    <text x="740" y="68" font-family="monospace" font-size="14" fill="#E50914">https://github.com/xboyrex/MiTool</text>
+  </g>
+</svg>

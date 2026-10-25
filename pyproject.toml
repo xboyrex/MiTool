@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pymitool"
+license = "Apache-2.0"
+version = "3.0.0"
+description = "MiTool + MiUnlockTool Unified Suite by xboyrex — Cross-Platform CLI & Desktop GUI for Xiaomi (Termux, Windows, Linux, macOS)"
+readme = "README.md"
+authors = [{ name = "xboyrex (Mayank Droid)" }]
+requires-python = ">=3.9"
+dependencies = [
+    "migate >= 1.1.11",
+    "pyaes",
+    "requests",
+    "miunlock >= 1.7.3",
+    "miflash >= 1.0.0",
+    "miasst >= 1.4.3",
+    "miapply >= 1.0.1",
+    "fcetool >= 1.0.6",
+    "rich >= 13.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/xboyrex/MiTool"
+Repository = "https://github.com/xboyrex/MiTool"
+
+[project.scripts]
+mitool = "mitool.cli:main"
+mitool-gui = "mitool.gui:main"
+xboyrex-mitool = "mitool.cli:main"
+miunlock = "miunlock.cli:main"
+xboyrex-miunlock = "miunlock.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["mitool*", "miunlock*"]
+
+[tool.setuptools.package-data]
+mitool = ["*.ico", "*.png"]
