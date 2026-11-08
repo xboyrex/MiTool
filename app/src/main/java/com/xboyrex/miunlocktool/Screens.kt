@@ -33,6 +33,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -271,12 +272,13 @@ private fun BeijingClockHeroCard(
     onMeasurePing: () -> Unit,
 ) {
     val c = MaterialTheme.colorScheme
-    val sendOffsetStr = remember(pingAvg) {
-        if (pingAvg > 0) {
-            val sendSec = (60.0 - (pingAvg / 1000.0)).coerceIn(56.0, 59.95)
-            String.format(Locale.US, "23:59:%.3f", sendSec)
+    val sendOffsetStr = remember(pingAvg, activeTimings) {
+        val firstTiming = activeTimings.firstOrNull()
+        if (pingAvg > 0 && firstTiming != null) {
+            val compensated = (firstTiming - pingAvg / 1000.0).coerceIn(0.0, 59.999)
+            String.format(Locale.US, "23:59:%.3f", compensated)
         } else {
-            "23:59:58.800"
+            "Awaiting ping"
         }
     }
     val profileLabel = when (timingProfile) {
@@ -301,49 +303,72 @@ private fun BeijingClockHeroCard(
             .border(1.dp, c.primary.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
             .padding(18.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(c.primary.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactHeader = maxWidth < 390.dp
+
+            @Composable
+            fun ClockTitle(modifier: Modifier) {
+                Row(
+                    modifier = modifier,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.AccessTime, null, tint = c.primary, modifier = Modifier.size(19.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = TranslationManager.tr("beijing_time_title"),
-                        fontFamily = RoundedHeavy,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        color = c.onSurface
-                    )
-                    Text(
-                        text = "Quota resets daily at 00:00:00.000 CST",
-                        fontSize = 11.sp,
-                        color = c.onSurfaceVariant
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(c.primary.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.AccessTime, null, tint = c.primary, modifier = Modifier.size(19.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = TranslationManager.tr("beijing_time_title"),
+                            fontFamily = RoundedHeavy,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = c.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Quota resets daily at 00:00:00.000 CST",
+                            fontSize = 11.sp,
+                            color = c.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SmallActionChip(
-                    label = "NTP",
-                    icon = Icons.Rounded.Sync,
-                    onClick = onSyncNtp
-                )
-                SmallActionChip(
-                    label = "Ping",
-                    icon = Icons.Rounded.NetworkCheck,
-                    onClick = onMeasurePing
-                )
+            @Composable
+            fun ClockActions() {
+                Row(
+                    modifier = if (compactHeader) Modifier.fillMaxWidth() else Modifier,
+                    horizontalArrangement = if (compactHeader) Arrangement.End else Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SmallActionChip(label = "NTP", icon = Icons.Rounded.Sync, onClick = onSyncNtp)
+                    SmallActionChip(label = "Ping", icon = Icons.Rounded.NetworkCheck, onClick = onMeasurePing)
+                }
+            }
+
+            if (compactHeader) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ClockTitle(Modifier.fillMaxWidth())
+                    ClockActions()
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    ClockTitle(Modifier.weight(1f))
+                    ClockActions()
+                }
             }
         }
 
@@ -506,55 +531,86 @@ private fun TokenAndEligibilityCard(
             .background(c.surfaceContainerHigh)
             .padding(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(CircleShape)
-                        .background(c.primary.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val compactHeader = maxWidth < 390.dp
+
+            @Composable
+            fun TokenTitle(modifier: Modifier) {
+                Row(
+                    modifier = modifier,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Rounded.Key, null, tint = c.primary, modifier = Modifier.size(18.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(c.primary.copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Key, null, tint = c.primary, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = TranslationManager.tr("section_token"),
+                            fontFamily = RoundedHeavy,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = c.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "Auto-extract via QR / Web Login or paste cookie",
+                            fontSize = 11.5.sp,
+                            color = c.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-                Spacer(Modifier.width(10.dp))
-                Column {
+            }
+
+            @Composable
+            fun AccountLoginButton() {
+                Row(
+                    modifier = Modifier
+                        .pressable(onClick = onOpenAuth)
+                        .clip(CircleShape)
+                        .background(c.primary)
+                        .padding(horizontal = 13.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.QrCode2, null, tint = c.onPrimary, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(5.dp))
                     Text(
-                        text = TranslationManager.tr("section_token"),
+                        text = "Account Login",
                         fontFamily = RoundedHeavy,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = c.onSurface
-                    )
-                    Text(
-                        text = "Auto-extract via QR / Web Login or paste cookie",
-                        fontSize = 11.5.sp,
-                        color = c.onSurfaceVariant
+                        fontSize = 12.sp,
+                        color = c.onPrimary,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .pressable(onClick = onOpenAuth)
-                    .clip(CircleShape)
-                    .background(c.primary)
-                    .padding(horizontal = 13.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Rounded.QrCode2, null, tint = c.onPrimary, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(
-                    text = "Account Login",
-                    fontFamily = RoundedHeavy,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = c.onPrimary
-                )
+            if (compactHeader) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TokenTitle(Modifier.fillMaxWidth())
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        AccountLoginButton()
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    TokenTitle(Modifier.weight(1f))
+                    AccountLoginButton()
+                }
             }
         }
 

@@ -160,9 +160,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _lastApplyDialogResult.value = result
             }
         }
-        // Initial NTP & Ping sync on launch
-        syncNtp()
-        measurePing()
+        // Respect the user's automatic synchronization preferences on launch.
+        if (prefs.autoNtpEnabled) syncNtp()
     }
 
     fun dismissApplyResultDialog() {

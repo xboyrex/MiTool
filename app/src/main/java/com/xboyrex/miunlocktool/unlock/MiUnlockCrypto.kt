@@ -58,13 +58,15 @@ object MiUnlockCrypto {
 
     fun hexToBytes(hex: String): ByteArray {
         val clean = hex.trim()
-        val len = clean.length
-        val data = ByteArray(len / 2)
-        var i = 0
-        while (i < len) {
-            data[i / 2] = ((Character.digit(clean[i], 16) shl 4) +
-                    Character.digit(clean[i + 1], 16)).toByte()
-            i += 2
+        require(clean.isNotEmpty()) { "Token hex must not be empty" }
+        require(clean.length % 2 == 0) { "Token hex must contain an even number of characters" }
+
+        val data = ByteArray(clean.length / 2)
+        for (index in clean.indices step 2) {
+            val high = Character.digit(clean[index], 16)
+            val low = Character.digit(clean[index + 1], 16)
+            require(high >= 0 && low >= 0) { "Token contains a non-hexadecimal character" }
+            data[index / 2] = ((high shl 4) or low).toByte()
         }
         return data
     }

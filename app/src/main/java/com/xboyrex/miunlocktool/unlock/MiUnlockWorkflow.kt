@@ -90,7 +90,11 @@ class MiUnlockWorkflow(
      * WARNING: This operation performs bootloader unlocking on the device!
      */
     fun performFastbootUnlock(encryptDataHex: String): Result<String> {
-        val rawData = MiUnlockCrypto.hexToBytes(encryptDataHex)
+        val rawData = try {
+            MiUnlockCrypto.hexToBytes(encryptDataHex)
+        } catch (e: IllegalArgumentException) {
+            return Result.failure(e)
+        }
 
         val stageRes = fastbootManager.stage(rawData)
         if (stageRes.isFailure) {

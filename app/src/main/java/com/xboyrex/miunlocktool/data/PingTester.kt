@@ -42,10 +42,17 @@ class PingTester {
                 .head()
                 .build()
             val start = System.currentTimeMillis()
-            client.newCall(request).execute().use { response ->
-                val duration = System.currentTimeMillis() - start
-                if (response.code < 500) duration else null
-            }
+            client.newBuilder()
+                .connectTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                .readTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                .callTimeout(timeoutMs.toLong(), TimeUnit.MILLISECONDS)
+                .build()
+                .newCall(request)
+                .execute()
+                .use { response ->
+                    val duration = System.currentTimeMillis() - start
+                    if (response.code < 500) duration else null
+                }
         } catch (e: Exception) {
             null
         }
@@ -78,10 +85,7 @@ class PingTester {
             delay(500)
         }
 
-        val avgHttp = if (httpPings.isNotEmpty()) httpPings.average().toLong() else 165L
-        val avgTcp = if (tcpPings.isNotEmpty()) tcpPings.average().toLong() else 165L
-        val combined = ((avgHttp + avgTcp) / 2L)
-        PingResult(httpPingMs = avgHttp, tcpPingMs = avgTcp, averageMs = combined)
+        aggregatePingResults(httpPings, tcpPings)
     }
 
     suspend fun measureQuickPing(): PingResult = withContext(Dispatchers.IO) {
@@ -95,17 +99,31 @@ class PingTester {
             tcpPing(host, port)?.let { tcpPings.add(it) }
         }
 
-        val avgHttp = if (httpPings.isNotEmpty()) httpPings.average().toLong() else 165L
-        val avgTcp = if (tcpPings.isNotEmpty()) tcpPings.average().toLong() else 165L
-        val combined = if (httpPings.isNotEmpty() || tcpPings.isNotEmpty()) {
-            ((avgHttp + avgTcp) / 2L)
-        } else {
-            -1L
-        }
-        PingResult(httpPingMs = avgHttp, tcpPingMs = avgTcp, averageMs = combined)
+        aggregatePingResults(httpPings, tcpPings)
     }
 
     suspend fun measureAveragePingMs(count: Int = 1): Long {
-        return measureQuickPing().averageMs
+        val samples = mutableListOf<Long>()
+        repeat(count.coerceIn(1, 10)) {
+            val sample = measureQuickPing().averageMs
+            if (sample >= 0L) samples += sample
+            if (it < count.coerceIn(1, 10) - 1) delay(150)
+        }
+        return if (samples.isEmpty()) -1L else samples.average().toLong()
     }
+}
+
+internal fun aggregatePingResults(
+    httpPings: List<Long>,
+    tcpPings: List<Long>
+): PingResult {
+    val httpAverage = httpPings.takeIf { it.isNotEmpty() }?.average()?.toLong() ?: -1L
+    val tcpAverage = tcpPings.takeIf { it.isNotEmpty() }?.average()?.toLong() ?: -1L
+    val available = listOf(httpAverage, tcpAverage).filter { it >= 0L }
+    val combined = if (available.isEmpty()) -1L else available.average().toLong()
+    return PingResult(
+        httpPingMs = httpAverage,
+        tcpPingMs = tcpAverage,
+        averageMs = combined
+    )
 }

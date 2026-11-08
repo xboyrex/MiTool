@@ -77,8 +77,9 @@ class ApplyScheduler(
 
     init {
         startClockTicker()
-        // Automatic initial ping measurement in background
-        measurePing(autoTriggered = true)
+        if (prefs.autoPingEnabled) {
+            measurePing(autoTriggered = true)
+        }
     }
 
     fun log(text: String, color: LogColorType = LogColorType.DEFAULT) {
@@ -148,20 +149,20 @@ class ApplyScheduler(
                 val day = cal.get(Calendar.DAY_OF_YEAR)
 
                 // Automatic NTP synchronization at 23:59:00 Beijing time
-                if (hour == 23 && min == 59 && sec >= 0 && sec < 5 && day != lastAutoNtpDay) {
+                if (prefs.autoNtpEnabled && hour == 23 && min == 59 && sec < 5 && day != lastAutoNtpDay) {
                     lastAutoNtpDay = day
                     syncNtp(autoTriggered = true)
                 }
 
                 // Automatic ping (PC style): 23:59:40
-                if (hour == 23 && min == 59 && sec >= 40 && sec < 45 && day != lastAutoPingDay && !_isRunning.value) {
+                if (prefs.autoPingEnabled && hour == 23 && min == 59 && sec >= 40 && sec < 45 && day != lastAutoPingDay && !_isRunning.value) {
                     lastAutoPingDay = day
                     measurePing(autoTriggered = true)
                 }
 
                 // Periodic background ping check every 60s when not close to midnight
                 val nowReal = System.currentTimeMillis()
-                if (nowReal - lastPeriodicPingTime > 60_000L && !(hour == 23 && min == 59)) {
+                if (prefs.autoPingEnabled && nowReal - lastPeriodicPingTime > 60_000L && !(hour == 23 && min == 59)) {
                     lastPeriodicPingTime = nowReal
                     measurePing(autoTriggered = true)
                 }
@@ -250,7 +251,7 @@ class ApplyScheduler(
         log(TranslationManager.tr("log_auto_mode_started"), LogColorType.PURPLE)
 
         // Ensure NTP is synced initially
-        if (!sntpClient.isSynchronized) {
+        if (prefs.autoNtpEnabled && !sntpClient.isSynchronized) {
             log(TranslationManager.tr("log_syncing_time"), LogColorType.CYAN)
             sntpClient.requestTime(prefs.ntpServer)
         }
@@ -273,13 +274,13 @@ class ApplyScheduler(
             }
 
             // 1. Automatic NTP synchronization at 23:59:00 Beijing time
-            if (hour == 23 && min == 59 && sec >= 0 && sec < 5 && !autoNtpDoneThisCycle) {
+            if (prefs.autoNtpEnabled && hour == 23 && min == 59 && sec < 5 && !autoNtpDoneThisCycle) {
                 autoNtpDoneThisCycle = true
                 syncNtp(autoTriggered = true)
             }
 
             // 2. Automatic Ping measurement like PC version: 15s measurement starting at 23:59:40
-            if (hour == 23 && min == 59 && sec >= 40 && !autoPingDoneThisCycle) {
+            if (prefs.autoPingEnabled && hour == 23 && min == 59 && sec >= 40 && !autoPingDoneThisCycle) {
                 autoPingDoneThisCycle = true
                 log(TranslationManager.tr("log_ping_wait_pc"), LogColorType.CYAN)
                 val pingResult = pingTester.measurePings(durationSeconds = 15)
@@ -293,15 +294,13 @@ class ApplyScheduler(
                 log(TranslationManager.tr("log_trigger_time", String.format(Locale.US, "%.3f", sendSec)), LogColorType.CYAN)
             }
 
-            // Calculate trigger time based on measured ping
-            val targetSeconds = if (_pingMs.value > 0) {
-                calculateSendTime(_pingMs.value)
-            } else {
-                58.800
-            }
+            // Compensate each configured server-arrival target by the measured
+            // round-trip latency. If no valid ping exists, preserve raw profile timings.
+            val latencyOffsetSeconds = if (_pingMs.value > 0L) _pingMs.value / 1000.0 else 0.0
+            val timings = prefs.getActiveTimings()
+                .map { (it - latencyOffsetSeconds).coerceIn(0.0, 59.999) }
             val currentSeconds = sec.toDouble() + (millis.toDouble() / 1000.0)
 
-            val timings = prefs.getActiveTimings()
             val firstTiming = timings.firstOrNull() ?: 58.700
             val scheduleSeconds = maxOf(50.0, firstTiming - 3.0)
 
@@ -371,24 +370,46 @@ class ApplyScheduler(
 
     private suspend fun runManualMode(token: String) {
         notificationManager?.updateSending()
-        val devId = apiService.generateDeviceId()
-        log(TranslationManager.tr("log_manual_sending", devId.take(8)), LogColorType.PURPLE)
+        val burstCount = prefs.burstCount.coerceIn(5, 50)
+        val burstIntervalMs = prefs.burstIntervalMs.coerceIn(25L, 500L)
 
-        // Stage 1: Отправка заявки
-        log(TranslationManager.tr("log_apply_sending"), LogColorType.PURPLE)
-        val result = apiService.applyUnlock(token, devId)
-        if (!result.isSent) {
-            log(TranslationManager.tr("log_apply_send_failed", result.message), LogColorType.RED)
-            handleApplyResult(result, 1)
-            _isRunning.value = false
-            return
+        log(
+            TranslationManager.tr(
+                "log_scheduling_requests",
+                "Manual burst",
+                burstCount,
+                "$burstIntervalMs ms interval"
+            ),
+            LogColorType.PURPLE
+        )
+
+        for (seq in 1..burstCount) {
+            if (!_isRunning.value) break
+
+            val devId = apiService.generateDeviceId()
+            log(TranslationManager.tr("log_manual_sending", devId.take(8)), LogColorType.PURPLE)
+            log(TranslationManager.tr("log_apply_sending_seq", seq), LogColorType.PURPLE)
+
+            val result = apiService.applyUnlock(token, devId)
+            if (!result.isSent) {
+                log(TranslationManager.tr("log_apply_send_failed_seq", seq, result.message), LogColorType.RED)
+                handleApplyResult(result, seq)
+                break
+            }
+
+            log(TranslationManager.tr("log_apply_sent_success_seq", seq), LogColorType.GREEN)
+            log(TranslationManager.tr("log_getting_status_seq", seq), LogColorType.CYAN)
+
+            val finalResult = resolveStatus(result, token, seq)
+            if (handleApplyResult(finalResult, seq)) {
+                break
+            }
+
+            if (seq < burstCount && _isRunning.value) {
+                delay(burstIntervalMs)
+            }
         }
-        log(TranslationManager.tr("log_apply_sent_success"), LogColorType.GREEN)
 
-        // Stage 2: Получение статуса
-        log(TranslationManager.tr("log_getting_status"), LogColorType.CYAN)
-        val finalResult = resolveStatus(result, token, 1)
-        handleApplyResult(finalResult, 1)
         _isRunning.value = false
     }
 
@@ -480,6 +501,9 @@ class ApplyScheduler(
             notificationManager?.cancel()
             context?.let { ApplyForegroundService.stop(it) }
             log(TranslationManager.tr("log_error_token_expired"), LogColorType.RED)
+            return true
+        } else if (result.code == 100001 || result.code == 100002) {
+            log(TranslationManager.tr("log_response_code", seq, result.code, result.message), LogColorType.RED)
             return true
         } else if (!result.isSent) {
             return false

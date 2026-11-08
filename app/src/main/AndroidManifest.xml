@@ -17,7 +17,7 @@
 
     <application
         android:name=".MiUnlockApplication"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:banner="@drawable/tv_banner"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
@@ -27,7 +27,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MiUnlockTool"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="false">
 
         <provider
             android:name="androidx.core.content.FileProvider"

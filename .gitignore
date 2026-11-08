@@ -11,10 +11,12 @@ local.properties
 keystore.properties
 *.jks
 *.keystore
-!app/release.keystore
 *.apk
 
 
 .idea/
 *.iml
 .DS_Store
+
+# Keep the existing shared debug signing key for upgrade compatibility.
+!app/release.keystore

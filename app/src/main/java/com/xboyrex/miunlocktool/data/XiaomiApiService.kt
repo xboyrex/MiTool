@@ -7,11 +7,12 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.security.MessageDigest
-import java.util.Random
+import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 
 class XiaomiApiService {
+
+    private val secureRandom = SecureRandom()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
@@ -188,10 +189,11 @@ class XiaomiApiService {
         val matchDeadline = deadlineRegex.find(str)?.groupValues?.get(1)
 
         val lower = str.lowercase(java.util.Locale.ROOT)
+        // Never infer success from free-form text. Error messages can contain
+        // words such as "not approved" or "not OK"; only structured numeric
+        // response codes are authoritative.
         val inferredCode = when {
             matchCode != null -> matchCode
-            lower.contains("success") || lower.contains("ok") || lower.contains("approved") -> 0
-            lower.contains("100003") -> 100003
             lower.contains("100004") || (lower.contains("token") && lower.contains("expired")) -> 100004
             else -> null
         }
@@ -203,7 +205,7 @@ class XiaomiApiService {
             stringValue = str,
             code = inferredCode,
             message = str,
-            applyResult = matchApplyResult ?: (if (inferredCode == 0) 1 else null),
+            applyResult = matchApplyResult,
             deadline = matchDeadline,
             isPass = matchIsPass,
             buttonState = matchButtonState
@@ -211,11 +213,9 @@ class XiaomiApiService {
     }
 
     fun generateDeviceId(): String {
-        val random = Random()
-        val raw = "${random.nextDouble()}-${System.currentTimeMillis()}-${random.nextInt(1000000)}"
-        val md = MessageDigest.getInstance("SHA-1")
-        val digest = md.digest(raw.toByteArray(Charsets.UTF_8))
-        return digest.joinToString("") { "%02X".format(it) }
+        val bytes = ByteArray(20)
+        secureRandom.nextBytes(bytes)
+        return bytes.joinToString("") { "%02X".format(it) }
     }
 
     suspend fun checkAccountStatus(token: String): CheckStatusResult = withContext(Dispatchers.IO) {
@@ -288,21 +288,10 @@ class XiaomiApiService {
                         "Account already approved until $deadline",
                         deadline
                     )
-                    else -> {
-                        if (code == 0 && (parsed.stringValue?.contains("approved", ignoreCase = true) == true ||
-                                parsed.stringValue?.contains("success", ignoreCase = true) == true)) {
-                            CheckStatusResult(
-                                AccountStatus.APPROVED,
-                                "Account already approved until $deadline",
-                                deadline
-                            )
-                        } else {
-                            CheckStatusResult(
-                                AccountStatus.UNKNOWN,
-                                parsed.stringValue?.take(100) ?: "Unknown response code=${code ?: -1}"
-                            )
-                        }
-                    }
+                    else -> CheckStatusResult(
+                        AccountStatus.UNKNOWN,
+                        parsed.stringValue?.take(100) ?: "Unknown response code=${code ?: -1}"
+                    )
                 }
             }
         } catch (e: Exception) {

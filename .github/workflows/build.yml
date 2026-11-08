@@ -1,4 +1,4 @@
-name: MiTool Android Build and Release
+name: MiUnlockTool Android Build and Auto Release
 
 on:
   push:
@@ -11,17 +11,17 @@ permissions:
   contents: write
 
 concurrency:
-  group: mitool-android-${{ github.ref }}
+  group: miunlocktool-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    name: Build Android APK and Publish Release
+  build:
+    name: Build Release APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Checkout
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Setup JDK 21
@@ -34,75 +34,87 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install Android API 37
-        run: |
-          sdkmanager --install "platforms;android-37.0"
+        run: sdkmanager --install "platforms;android-37.0"
 
-      - name: Setup Gradle 9.7.1
+      - name: Setup Gradle 9.8.2
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.7.1'
+          gradle-version: '9.8.2'
           validate-wrappers: false
           cache-read-only: false
 
-      - name: Validate project
+      - name: Validate toolchain
         run: |
-          test -f settings.gradle.kts
-          test -f app/build.gradle.kts
           java -version
           gradle --version
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          test -f app/src/main/AndroidManifest.xml
 
-      - name: Build Release APK
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+      - name: Audit source integrity
+        run: python3 tools/verify_source.py
+
+      - name: Run unit tests
+        run: gradle --no-daemon --stacktrace --max-workers=2 :app:testDebugUnitTest
+
+      - name: Build release APK
         run: |
-          gradle \
-            --no-daemon \
+          gradle --no-daemon \
             --stacktrace \
             --build-cache \
             --max-workers=2 \
             :app:assembleRelease
 
-      - name: Verify APK
-        id: apk
+      - name: Verify and stage APKs
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p dist
-
-          find app/build/outputs/apk/release \
-            -type f -name "*.apk" -print
-
-          mapfile -t APKS < <(
-            find app/build/outputs/apk/release \
-              -type f -name "*.apk"
+          mapfile -t apks < <(
+            find app/build/outputs/apk/release -type f -name '*.apk' -print
           )
-
-          if [ "${#APKS[@]}" -eq 0 ]; then
-            echo "No release APK generated."
+          if [ "${#apks[@]}" -eq 0 ]; then
+            echo "No release APK was generated."
             exit 1
           fi
-
-          for apk in "${APKS[@]}"; do
+          for apk in "${apks[@]}"; do
             cp "$apk" "dist/$(basename "$apk")"
           done
-
+          sha256sum dist/*.apk
           ls -lh dist/
 
-      - name: Upload APK Artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MiTool-Android-APK
+          name: MiUnlockTool-Android-APK
           path: dist/*.apk
           if-no-files-found: error
           retention-days: 30
 
-      - name: Publish GitHub Release
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download APK artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: MiUnlockTool-Android-APK
+          path: dist
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: mitool-build-${{ github.run_number }}
-          name: MiTool Android Build #${{ github.run_number }}
+          tag_name: miunlocktool-ci-${{ github.run_number }}
+          name: Mi Unlock Tool CI Build #${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
+          body: |
+            Automated Android APK build.
+            Signed with the repository's existing shared Android debug keystore to preserve APK upgrade compatibility.
+            This shared debug key is not suitable as a production-private signing identity.
           files: dist/*.apk
           fail_on_unmatched_files: true
         env:

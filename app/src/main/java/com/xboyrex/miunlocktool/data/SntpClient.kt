@@ -41,16 +41,39 @@ class SntpClient {
             socket.soTimeout = TIMEOUT_MS
 
             val requestPacket = DatagramPacket(buffer, buffer.size, address, NTP_PORT)
+            val clientTransmitTimestamp = buffer.copyOfRange(40, 48)
+            socket.connect(address, NTP_PORT)
             socket.send(requestPacket)
 
-            val responsePacket = DatagramPacket(buffer, buffer.size)
+            val responsePacket = DatagramPacket(ByteArray(NTP_PACKET_SIZE), NTP_PACKET_SIZE)
             socket.receive(responsePacket)
             val responseTime = System.currentTimeMillis()
 
-            val t0 = readTimeStamp(buffer, 24)
-            val t1 = readTimeStamp(buffer, 32)
-            val t2 = readTimeStamp(buffer, 40)
+            if (responsePacket.length < NTP_PACKET_SIZE) return@withContext false
+
+            val response = responsePacket.data
+            val header = response[0].toInt() and 0xFF
+            val leapIndicator = (header ushr 6) and 0x03
+            val version = (header ushr 3) and 0x07
+            val mode = header and 0x07
+            val stratum = response[1].toInt() and 0xFF
+
+            // Accept only valid server replies (LI != 3, NTP v3/v4, server mode, stratum 1..15).
+            if (leapIndicator == 3 || version !in 3..4 || mode != 4 || stratum !in 1..15) {
+                return@withContext false
+            }
+
+            // The server's originate timestamp must exactly echo our transmit timestamp.
+            if (!response.copyOfRange(24, 32).contentEquals(clientTransmitTimestamp)) {
+                return@withContext false
+            }
+
+            val t0 = readTimeStamp(response, 24)
+            val t1 = readTimeStamp(response, 32)
+            val t2 = readTimeStamp(response, 40)
             val t3 = responseTime
+
+            if (t0 <= 0L || t1 <= 0L || t2 <= 0L) return@withContext false
 
             val offset = ((t1 - t0) + (t2 - t3)) / 2
             clockOffsetMs = offset
