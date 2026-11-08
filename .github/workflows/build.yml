@@ -35,8 +35,7 @@ jobs:
 
       - name: Install Android API 37
         run: |
-          sdkmanager --install "platforms;android-37"
-          sdkmanager --licenses
+          sdkmanager --install "platforms;android-37.0"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
