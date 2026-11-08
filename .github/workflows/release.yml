@@ -1,0 +1,72 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Publish GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew :app:assembleRelease --build-cache --parallel --stacktrace
+
+      - name: Prepare APK Artifact
+        run: cp app/build/outputs/apk/release/app-release.apk MiUnlockTool.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiUnlockTool
+          path: MiUnlockTool.apk
+
+      - name: Set Release Title
+        id: release_title
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "title=Mi Unlock Tool ${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.release_title.outputs.title }}
+          files: MiUnlockTool.apk
+          body: |
+            • Pure AMOLED Dark + Onyx Yellow (`#FFD600`) Liquid Glass UI with 120Hz/144Hz spring physics.
+            • High-precision Beijing midnight (`00:00:00 CST`) auto-sniper with SNTP & HTTP/TCP latency compensation.
+            • Built-in Xiaomi Account QR Login & In-App WebView Cookie Extractor (`new_bbs_serviceToken` & `ssecurity`).
+            • USB OTG Fastboot & Xiaomi `/api/v3/ahaUnlock` `encryptData(token)` generator for PC-less bootloader unlocking.
+            • HyperOS Spotlight & Dynamic Island live countdown notification support.
+            • Built for Android 17 (API 37) by **Mayank Droid (`@xboyrex`)**.
+
+            ### Release Signature Fingerprints
+            - **SHA-256**: `C4:12:EA:6D:B4:F2:15:18:27:E3:2F:33:D6:55:AD:BC:CA:EF:D8:F3:17:F6:0D:3B:BD:B2:A7:30:F4:F1:B7:F1`
+            - **SHA-1**: `99:B9:CB:6C:58:B2:42:6E:0E:3B:6C:E8:29:43:36:2C:9E:AB:39:4F`
+            - **Alias**: `androiddebugkey`
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

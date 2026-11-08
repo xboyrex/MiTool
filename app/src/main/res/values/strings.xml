@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mi Unlock Tool</string>
+    <string name="notif_channel_name">Unlock Application Status</string>
+    <string name="notif_channel_desc">Live Beijing midnight countdown and bootloader unlock status</string>
+</resources>

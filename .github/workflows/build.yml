@@ -1,0 +1,51 @@
+name: Android CI Build
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Release APK (Android 17 / API 37)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle with Cache
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: false
+          cache-read-only: false
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Build Optimized Release APK
+        run: ./gradlew :app:assembleRelease --build-cache --parallel --stacktrace
+
+      - name: Prepare APK Artifact
+        run: cp app/build/outputs/apk/release/app-release.apk MiUnlockTool.apk
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiUnlockTool-Release-APK
+          path: MiUnlockTool.apk
+          retention-days: 30
