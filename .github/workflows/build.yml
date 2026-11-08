@@ -50,7 +50,17 @@ jobs:
           test -f app/build.gradle.kts
           chmod +x gradlew
           java -version
-          ./gradlew --version
+          for attempt in 1 2 3 4 5; do
+            echo "Gradle download attempt $attempt/5"
+            if ./gradlew --version; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              sleep 15
+            fi
+          done
+          echo "Gradle wrapper failed after 5 attempts."
+          exit 1
 
       - name: Build Release APK
         env:
