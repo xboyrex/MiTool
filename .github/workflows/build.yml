@@ -1,51 +1,111 @@
-name: Android CI Build
+name: MiTool Android Build and Release
 
 on:
   push:
     branches:
       - main
       - master
-  pull_request:
-    branches:
-      - main
-      - master
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: mitool-android-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build Release APK (Android 17 / API 37)
+  build-and-release:
+    name: Build Android APK and Publish Release
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '21'
 
-      - name: Setup Gradle with Cache
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android API 37
+        run: |
+          sdkmanager --install "platforms;android-37"
+          sdkmanager --licenses
+
+      - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           validate-wrappers: false
           cache-read-only: false
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Validate project
+        run: |
+          test -f gradlew
+          test -f settings.gradle.kts
+          test -f app/build.gradle.kts
+          chmod +x gradlew
+          java -version
+          ./gradlew --version
 
-      - name: Build Optimized Release APK
-        run: ./gradlew :app:assembleRelease --build-cache --parallel --stacktrace
+      - name: Build Release APK
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+        run: |
+          ./gradlew \
+            --no-daemon \
+            --stacktrace \
+            --build-cache \
+            --max-workers=2 \
+            :app:assembleRelease
 
-      - name: Prepare APK Artifact
-        run: cp app/build/outputs/apk/release/app-release.apk MiUnlockTool.apk
+      - name: Verify APK
+        id: apk
+        shell: bash
+        run: |
+          set -e
+          mkdir -p dist
 
-      - name: Upload Release APK Artifact
+          find app/build/outputs/apk/release \
+            -type f -name "*.apk" -print
+
+          mapfile -t APKS < <(
+            find app/build/outputs/apk/release \
+              -type f -name "*.apk"
+          )
+
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "No release APK generated."
+            exit 1
+          fi
+
+          for apk in "${APKS[@]}"; do
+            cp "$apk" "dist/$(basename "$apk")"
+          done
+
+          ls -lh dist/
+
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MiUnlockTool-Release-APK
-          path: MiUnlockTool.apk
+          name: MiTool-Android-APK
+          path: dist/*.apk
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mitool-build-${{ github.run_number }}
+          name: MiTool Android Build #${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
