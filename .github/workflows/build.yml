@@ -37,36 +37,25 @@ jobs:
         run: |
           sdkmanager --install "platforms;android-37.0"
 
-      - name: Setup Gradle
+      - name: Setup Gradle 9.7.1
         uses: gradle/actions/setup-gradle@v4
         with:
+          gradle-version: '9.7.1'
           validate-wrappers: false
           cache-read-only: false
 
       - name: Validate project
         run: |
-          test -f gradlew
           test -f settings.gradle.kts
           test -f app/build.gradle.kts
-          chmod +x gradlew
           java -version
-          for attempt in 1 2 3 4 5; do
-            echo "Gradle download attempt $attempt/5"
-            if ./gradlew --version; then
-              exit 0
-            fi
-            if [ "$attempt" -lt 5 ]; then
-              sleep 15
-            fi
-          done
-          echo "Gradle wrapper failed after 5 attempts."
-          exit 1
+          gradle --version
 
       - name: Build Release APK
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false"
         run: |
-          ./gradlew \
+          gradle \
             --no-daemon \
             --stacktrace \
             --build-cache \
